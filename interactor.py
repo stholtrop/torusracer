@@ -1,45 +1,56 @@
-from subprocess import Popen, PIPE
-import sys
-import game
-import time
+import sys, game, time
 
-p1 = Popen(["python3", "-u", sys.argv[1]], stdin=PIPE, stdout=PIPE, bufsize=1, text=True)
-p2 = Popen(["python3", "-u", sys.argv[2]], stdin=PIPE, stdout=PIPE, bufsize=1, text=True)
+class Player:
+    def __init__(self, file, height, width, number_of_players, player_number, start_postitions):
+        module = __import__(file)
+        self.program = module.Program(height, width, number_of_players, player_number, start_postitions)
 
-players = [p1, p2]
+    def update(self, player_number, move):
+        self.program.update(player_number, move)
 
+    def get_move(self):
+        return self.program.get_move()
+
+width, height, number_of_players = 10, 10, 2
+start_positions = ((0, 0), (5, 5))
+
+g = game.Game(height, width, start_positions)
+players = []
+
+for i in range(len(sys.argv) - 1):
+    players.append(Player(sys.argv[i + 1], height, width, number_of_players, i, start_positions))
 f = open("record.txt", "w")
 
 g = game.Game()
 
-# setup: first print board dimensions and number of players, then print your player id. Next up all positions of the players in order
-for i, p in enumerate(players):
-    p.stdin.write("100 100 2\n")
-    p.stdin.write(f"{i}\n")
-    p.stdin.write("0 0 50 50\n")
-
-f.write("100 100 2\n")
-f.write("0 0 50 50\n")
+f.write("x, y, number of players: 100 100 2\n")
+f.write("starting positions: 0 0 50 50\n")
 
 # Game is played by asking current player to move
 while not g.is_done():
     for i, p in enumerate(players):
-        print(i)
+
+        # Check if current player is still in the game
         if not g.alive[i]:
             continue
-        p.stdin.write("MOVE\n")
-        p.stdin.flush()
-        move = p.stdout.readline()[:-1]
+        
+        # Get move of current player
+        move = p.get_move() 
+
+        # Communicate move to other players
         for j, q in enumerate(players):
-            if i == j: continue
-            q.stdin.write(f"{i} {move}")
-        f.write(f"{i} {move}")
+            if i == j or not g.alive[j]: continue
+            q.update(i, move)
+        
+
+        # Update logs
+        f.write(f"Player {i} : {move}\n")
         result = g.move_player(i, move)
         if result: 
-            p.communicate("QUIT\n")
             f.write(f"Player {i} died.\n")
         if g.is_done():
             break
-players[g.get_winner()].communicate("QUIT\n")
-f.write(f"The winner is player {g.get_winner()}.")
+
+f.write(f"The winner is player {g.get_winner()}.\n")
+f.write(g.get_board())
 f.close()
